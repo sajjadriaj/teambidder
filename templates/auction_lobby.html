@@ -1,0 +1,681 @@
+{% extends "base.html" %}
+
+{% block title %}{{ auction.name }} - Lobby{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <!-- Main Dashboard -->
+        <div class="lg:col-span-2">
+            <!-- Header with Status and Start Button -->
+            <div class="mb-8">
+                <div class="flex justify-between items-start mb-4">
+                    <div>
+                        <h1 class="text-4xl font-bold text-gray-800 mb-2">{{ auction.name }}</h1>
+                    </div>
+                    
+                    <!-- Status and Start Button in Top Right -->
+                    <div class="flex items-center space-x-3">
+                        <!-- Status Badge -->
+                        {% if auction.status == 'lobby' %}
+                            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-gray-100 text-gray-800">
+                                <i class="fas fa-hourglass-start mr-2 text-gray-600"></i>
+                                Waiting to Start
+                            </span>
+                        {% elif auction.status == 'countdown' %}
+                            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-orange-100 text-orange-800">
+                                <i class="fas fa-clock mr-2 text-orange-600"></i>
+                                Starting Soon
+                            </span>
+                        {% elif auction.status == 'active' %}
+                            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-green-100 text-green-800">
+                                <i class="fas fa-play-circle mr-2 text-green-600"></i>
+                                In Progress
+                            </span>
+                        {% elif auction.status == 'completed' %}
+                            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-blue-100 text-blue-800">
+                                <i class="fas fa-check-circle mr-2 text-blue-600"></i>
+                                Finished
+                            </span>
+                        {% else %}
+                            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-yellow-100 text-yellow-800">
+                                <i class="fas fa-question-circle mr-2 text-yellow-600"></i>
+                                {{ auction.status|title }}
+                            </span>
+                        {% endif %}
+                        
+                        <!-- Start Auction Button -->
+                        {% if is_admin and auction.status == 'lobby' %}
+                        <button class="px-4 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors shadow-sm disabled:bg-gray-400 disabled:cursor-not-allowed" 
+                                id="start-auction-btn" 
+                                onclick="startAuction('{{ auction.id }}')"
+                                disabled>
+                            <i class="fas fa-play mr-2"></i>Start Auction
+                        </button>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <!-- Info Box -->
+                <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                    <div class="flex items-center space-x-3">
+                        <div class="flex-shrink-0">
+                            <i class="fas fa-{% if auction.sport == 'cricket' %}bowling-ball{% elif auction.sport == 'football' %}futbol{% elif auction.sport == 'basketball' %}basketball-ball{% elif auction.sport == 'baseball' %}baseball-ball{% else %}trophy{% endif %} text-2xl text-blue-600"></i>
+                        </div>
+                        <div class="flex-1">
+                            <h3 class="text-lg font-semibold text-blue-800">{{ auction.sport|title }} Auction</h3>
+                            <p class="text-blue-600" id="auction-info-message">
+                                Waiting for bidders and visitors to join. Need at least 2 bidders to start.
+                            </p>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-sm text-blue-700">
+                                <span class="font-medium" id="bidder-count">{{ total_bidders }}</span> bidders joined
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Auction Codes -->
+            {% if is_admin %}
+            <div class="bg-white rounded-xl shadow-lg mb-8">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h3 class="text-lg font-semibold text-gray-800">
+                        <i class="fas fa-key mr-2"></i>Invitation Codes
+                    </h3>
+                </div>
+                <div class="p-6">
+                    <div class="grid lg:grid-cols-3 gap-6">
+                        <div class="bg-red-50 p-4 rounded-lg">
+                            <h4 class="font-medium text-gray-800 mb-3">Admin Code</h4>
+                            <div class="space-y-2">
+                                <div class="flex items-center space-x-2">
+                                    <code id="admin-code" class="flex-1 bg-white px-2 py-1 rounded font-mono text-xs text-red-600">{{ auction.admin_code }}</code>
+                                    <button onclick="copyCode('admin-code')" 
+                                            class="px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700 transition-colors text-xs">
+                                        <i class="fas fa-copy"></i>
+                                    </button>
+                                </div>
+                                <button onclick="copyURL('{{ request.url_root }}join/{{ auction.admin_code }}')" 
+                                        class="w-full px-3 py-2 bg-red-100 text-red-700 rounded hover:bg-red-200 transition-colors text-sm">
+                                    <i class="fas fa-link mr-1"></i>Copy URL
+                                </button>
+                                <p class="text-xs text-gray-600">Admin access (save this!)</p>
+                            </div>
+                        </div>
+                        <div class="bg-blue-50 p-4 rounded-lg">
+                            <h4 class="font-medium text-gray-800 mb-3">Bidder Code</h4>
+                            <div class="space-y-2">
+                                <div class="flex items-center space-x-2">
+                                    <code id="bidder-code" class="flex-1 bg-white px-2 py-1 rounded font-mono text-xs text-blue-600">{{ auction.bidder_code }}</code>
+                                    <button onclick="copyCode('bidder-code')" 
+                                            class="px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-xs">
+                                        <i class="fas fa-copy"></i>
+                                    </button>
+                                </div>
+                                <button onclick="copyURL('{{ request.url_root }}join/{{ auction.bidder_code }}')" 
+                                        class="w-full px-3 py-2 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition-colors text-sm">
+                                    <i class="fas fa-link mr-1"></i>Copy URL
+                                </button>
+                                <p class="text-xs text-gray-600">Share with team owners</p>
+                            </div>
+                        </div>
+                        <div class="bg-green-50 p-4 rounded-lg">
+                            <h4 class="font-medium text-gray-800 mb-3">Visitor Code</h4>
+                            <div class="space-y-2">
+                                <div class="flex items-center space-x-2">
+                                    <code id="visitor-code" class="flex-1 bg-white px-2 py-1 rounded font-mono text-xs text-green-600">{{ auction.visitor_code }}</code>
+                                    <button onclick="copyCode('visitor-code')" 
+                                            class="px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700 transition-colors text-xs">
+                                        <i class="fas fa-copy"></i>
+                                    </button>
+                                </div>
+                                <button onclick="copyURL('{{ request.url_root }}join/{{ auction.visitor_code }}')" 
+                                        class="w-full px-3 py-2 bg-green-100 text-green-700 rounded hover:bg-green-200 transition-colors text-sm">
+                                    <i class="fas fa-link mr-1"></i>Copy URL
+                                </button>
+                                <p class="text-xs text-gray-600">Share with viewers</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+        <!-- Stats Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
+            <div class="bg-white rounded-xl shadow-lg p-6 text-center">
+                <i class="fas fa-users text-4xl text-primary mb-3"></i>
+                <h3 class="text-2xl font-bold text-gray-800">{{ total_players }}</h3>
+                <p class="text-gray-600">Players</p>
+            </div>
+            <div class="bg-white rounded-xl shadow-lg p-6 text-center">
+                <i class="fas fa-gavel text-4xl text-success mb-3"></i>
+                <h3 class="text-2xl font-bold text-gray-800">{{ total_bidders }}</h3>
+                <p class="text-gray-600">Bidders</p>
+            </div>
+            <div class="bg-white rounded-xl shadow-lg p-6 text-center">
+                <i class="fas fa-eye text-4xl text-info mb-3"></i>
+                <h3 class="text-2xl font-bold text-gray-800">{{ total_visitors }}</h3>
+                <p class="text-gray-600">Visitors</p>
+            </div>
+            <div class="bg-white rounded-xl shadow-lg p-6 text-center">
+                <i class="fas fa-wallet text-4xl text-warning mb-3"></i>
+                <h3 class="text-2xl font-bold text-gray-800">${{ (auction.budget_per_team / 1000)|int }}K</h3>
+                <p class="text-gray-600">Budget per Team</p>
+            </div>
+            <div class="bg-white rounded-xl shadow-lg p-6 text-center">
+                <i class="fas fa-list-ol text-4xl text-purple-500 mb-3"></i>
+                <h3 class="text-2xl font-bold text-gray-800">{{ auction.max_players_per_team }}</h3>
+                <p class="text-gray-600">Max Players per Team</p>
+            </div>
+        </div>
+
+        <!-- Players List -->
+        <div class="bg-white rounded-xl shadow-lg">
+            <div class="px-6 py-4 border-b border-gray-200">
+                <h3 class="text-lg font-semibold text-gray-800">
+                    <i class="fas fa-list mr-2"></i>Players ({{ players|length }})
+                </h3>
+            </div>
+            <div class="p-6">
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Position</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rating</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Base Price</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            {% for player in players %}
+                            <tr class="hover:bg-gray-50">
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="font-medium text-gray-900">{{ player.name }}</div>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">
+                                        {{ player.position }}
+                                    </span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="w-full bg-gray-200 rounded-full h-2">
+                                        <div class="bg-gradient-to-r from-green-400 to-blue-500 h-2 rounded-full" style="width: {{ player.rating }}%"></div>
+                                    </div>
+                                    <span class="text-sm text-gray-600">{{ player.rating }}</span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                    ${{ "{:,}".format(player.starting_bid|int) }}
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+                                        {{ player.status|title }}
+                                    </span>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        </div>
+
+        <!-- Sidebar -->
+        <div class="lg:col-span-1 space-y-6">
+        <!-- Participants -->
+        <div class="bg-white rounded-xl shadow-lg">
+            <div class="px-4 py-3 border-b border-gray-200">
+                <h3 class="text-lg font-semibold text-gray-800">
+                    <i class="fas fa-users mr-2"></i>Participants ({{ participants|length }})
+                </h3>
+            </div>
+            <div class="p-4">
+                <div class="space-y-2 max-h-64 overflow-y-auto custom-scrollbar" id="participants-list">
+                    {% for participant in participants %}
+                    <div class="flex items-center justify-between p-2 bg-gray-50 rounded-lg" data-role="{{ participant.role }}">
+                        <div class="flex items-center space-x-2">
+                            <div class="flex-shrink-0">
+                                <div class="w-6 h-6 rounded-full bg-{{ 'red' if participant.role == 'admin' else 'blue' if participant.role == 'bidder' else 'green' }}-500 flex items-center justify-center">
+                                    <i class="fas fa-{{ 'crown' if participant.role == 'admin' else 'gavel' if participant.role == 'bidder' else 'eye' }} text-white text-xs"></i>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="font-medium text-gray-900 text-sm">{{ participant.name }}</div>
+                                <div class="text-xs text-gray-500">{{ participant.role|title }}</div>
+                            </div>
+                        </div>
+                        {% if participant.role == 'bidder' %}
+                        <div class="text-right">
+                            <div class="text-xs font-medium text-gray-900">
+                                {{ participant.get_player_count() }}/{{ auction.max_players_per_team }}
+                            </div>
+                            <div class="text-xs text-gray-500">Players</div>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Chat -->
+        <div class="bg-white rounded-xl shadow-lg">
+            <div class="px-4 py-3 border-b border-gray-200">
+                <h3 class="text-lg font-semibold text-gray-800">
+                    <i class="fas fa-comments mr-2"></i>Live Chat
+                </h3>
+            </div>
+            <div class="p-4">
+                <div class="h-64 overflow-y-auto custom-scrollbar bg-gray-50 rounded-lg p-3 mb-3" id="chat-messages">
+                    <div class="text-center text-gray-500 text-sm py-4">
+                        <i class="fas fa-comments-alt mb-2"></i>
+                        <p>Chat messages will appear here</p>
+                    </div>
+                </div>
+                <div class="flex space-x-2">
+                    <input type="text" 
+                           class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-sm" 
+                           id="chat-input" 
+                           placeholder="Type a message..." 
+                           maxlength="200">
+                    <button onclick="sendMessage()" 
+                            class="px-3 py-2 bg-primary text-white rounded-lg hover:bg-blue-700 transition-colors">
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Countdown Modal -->
+<div id="countdownModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
+    <div class="bg-white rounded-2xl p-8 max-w-md mx-4 text-center">
+        <h2 class="text-3xl font-bold text-gray-800 mb-6">Auction Starting In</h2>
+        <div class="text-8xl font-bold text-primary mb-6">
+            <span id="countdown-timer">60</span>
+        </div>
+        <p class="text-gray-600">Get ready for the auction!</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let socket = io();
+let auctionId = '{{ auction.id }}';
+
+// Join auction room
+console.log('Attempting to join auction:', auctionId);
+socket.emit('join_auction', {auction_id: auctionId});
+
+// Load existing chat messages
+loadChatMessages();
+
+// Update start button based on bidder count
+updateStartButton();
+
+
+// Socket event handlers
+socket.on('connect', function() {
+    console.log('Connected to server');
+});
+
+socket.on('disconnect', function() {
+    console.log('Disconnected from server');
+});
+
+socket.on('joined_auction', function(data) {
+    console.log('Successfully joined auction:', data);
+});
+
+socket.on('participant_joined', function(data) {
+    console.log('New participant joined:', data.participant);
+    addParticipantToList(data.participant);
+    updateStartButton();
+});
+
+socket.on('new_message', function(data) {
+    console.log('Received message:', data.message);
+    addMessageToChat(data.message);
+});
+
+socket.on('countdown_start', function(data) {
+    console.log('Countdown started:', data.countdown);
+    showCountdownModal(data.countdown);
+});
+
+socket.on('countdown_update', function(data) {
+    console.log('Countdown update:', data.countdown);
+    updateCountdown(data.countdown);
+});
+
+socket.on('auction_start', function(data) {
+    console.log('Auction started:', data);
+    hideCountdownModal();
+    window.location.href = '/auction/{{ auction.id }}/view';
+});
+
+socket.on('error', function(data) {
+    console.error('Socket error:', data);
+    alert('Error: ' + data.message);
+});
+
+// Functions
+function copyCode(elementId) {
+    // Get the full code based on the element ID
+    let fullCode;
+    if (elementId === 'admin-code') {
+        fullCode = '{{ auction.admin_code }}';
+    } else if (elementId === 'bidder-code') {
+        fullCode = '{{ auction.bidder_code }}';
+    } else if (elementId === 'visitor-code') {
+        fullCode = '{{ auction.visitor_code }}';
+    }
+    
+    if (!fullCode) return;
+    
+    // Copy to clipboard with proper error handling
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(fullCode).then(() => {
+            showCopyFeedback(elementId, true);
+        }).catch(err => {
+            console.error('Failed to copy: ', err);
+            // Fallback method
+            fallbackCopyTextToClipboard(fullCode, elementId);
+        });
+    } else {
+        // Fallback method for older browsers
+        fallbackCopyTextToClipboard(fullCode, elementId);
+    }
+}
+
+function fallbackCopyTextToClipboard(text, elementId) {
+    var textArea = document.createElement("textarea");
+    textArea.value = text;
+    textArea.style.position = "fixed";
+    textArea.style.left = "-999999px";
+    textArea.style.top = "-999999px";
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    
+    try {
+        var successful = document.execCommand('copy');
+        showCopyFeedback(elementId, successful);
+    } catch (err) {
+        console.error('Fallback: Oops, unable to copy', err);
+        showCopyFeedback(elementId, false);
+    }
+    
+    document.body.removeChild(textArea);
+}
+
+function showCopyFeedback(elementId, success) {
+    const codeElement = document.getElementById(elementId);
+    const btn = codeElement.parentElement.querySelector('button');
+    const original = btn.innerHTML;
+    
+    if (success) {
+        btn.innerHTML = '<i class="fas fa-check"></i>';
+        // Remove existing color classes and add success class
+        btn.classList.remove('bg-red-600', 'bg-blue-600', 'bg-green-600', 'hover:bg-red-700', 'hover:bg-blue-700', 'hover:bg-green-700');
+        btn.classList.add('bg-green-600', 'hover:bg-green-700');
+    } else {
+        btn.innerHTML = '<i class="fas fa-times"></i>';
+        btn.classList.remove('bg-red-600', 'bg-blue-600', 'bg-green-600', 'hover:bg-red-700', 'hover:bg-blue-700', 'hover:bg-green-700');
+        btn.classList.add('bg-red-600', 'hover:bg-red-700');
+    }
+    
+    setTimeout(() => {
+        btn.innerHTML = original;
+        btn.classList.remove('bg-green-600', 'hover:bg-green-700', 'bg-red-600', 'hover:bg-red-700');
+        
+        // Restore original colors based on element ID
+        if (elementId === 'admin-code') {
+            btn.classList.add('bg-red-600', 'hover:bg-red-700');
+        } else if (elementId === 'bidder-code') {
+            btn.classList.add('bg-blue-600', 'hover:bg-blue-700');
+        } else {
+            btn.classList.add('bg-green-600', 'hover:bg-green-700');
+        }
+    }, 2000);
+}
+
+function copyURL(url) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(url).then(() => {
+            showURLCopyFeedback(true);
+        }).catch(err => {
+            console.error('Failed to copy URL: ', err);
+            fallbackCopyURL(url);
+        });
+    } else {
+        fallbackCopyURL(url);
+    }
+}
+
+function fallbackCopyURL(url) {
+    var textArea = document.createElement("textarea");
+    textArea.value = url;
+    textArea.style.position = "fixed";
+    textArea.style.left = "-999999px";
+    textArea.style.top = "-999999px";
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    
+    try {
+        var successful = document.execCommand('copy');
+        showURLCopyFeedback(successful);
+    } catch (err) {
+        console.error('Fallback: Oops, unable to copy URL', err);
+        showURLCopyFeedback(false);
+    }
+    
+    document.body.removeChild(textArea);
+}
+
+function showURLCopyFeedback(success) {
+    const event = window.event;
+    const btn = event.target.closest('button');
+    const original = btn.innerHTML;
+    
+    if (success) {
+        btn.innerHTML = '<i class="fas fa-check mr-1"></i>Copied!';
+    } else {
+        btn.innerHTML = '<i class="fas fa-times mr-1"></i>Failed!';
+    }
+    
+    setTimeout(() => {
+        btn.innerHTML = original;
+    }, 2000);
+}
+
+function startAuction(auctionId) {
+    fetch(`/auction/${auctionId}/start`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            alert(data.error);
+        }
+    });
+}
+
+function sendMessage() {
+    const input = document.getElementById('chat-input');
+    const message = input.value.trim();
+    
+    if (message) {
+        console.log('Sending message:', message);
+        
+        // Show immediate feedback
+        const chatMessages = document.getElementById('chat-messages');
+        const tempElement = document.createElement('div');
+        tempElement.className = 'mb-2 text-sm text-gray-500 italic';
+        tempElement.innerHTML = 'Sending...';
+        tempElement.id = 'temp-sending';
+        chatMessages.appendChild(tempElement);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+        
+        socket.emit('send_message', {
+            auction_id: auctionId,
+            message: message
+        });
+        input.value = '';
+        
+        // Remove "Sending..." after 3 seconds if no response
+        setTimeout(() => {
+            const temp = document.getElementById('temp-sending');
+            if (temp) {
+                temp.remove();
+            }
+        }, 3000);
+    }
+}
+
+function addParticipantToList(participant) {
+    const list = document.getElementById('participants-list');
+    const item = document.createElement('div');
+    item.className = 'flex items-center justify-between p-2 bg-gray-50 rounded-lg';
+    item.setAttribute('data-role', participant.role);
+    
+    const roleColor = participant.role === 'admin' ? 'red' : participant.role === 'bidder' ? 'blue' : 'green';
+    const roleIcon = participant.role === 'admin' ? 'crown' : participant.role === 'bidder' ? 'gavel' : 'eye';
+    
+    item.innerHTML = `
+        <div class="flex items-center space-x-2">
+            <div class="flex-shrink-0">
+                <div class="w-6 h-6 rounded-full bg-${roleColor}-500 flex items-center justify-center">
+                    <i class="fas fa-${roleIcon} text-white text-xs"></i>
+                </div>
+            </div>
+            <div>
+                <div class="font-medium text-gray-900 text-sm">${participant.name}</div>
+                <div class="text-xs text-gray-500">${participant.role.charAt(0).toUpperCase() + participant.role.slice(1)}</div>
+            </div>
+        </div>
+        ${participant.role === 'bidder' ? `
+        <div class="text-right">
+            <div class="text-xs font-medium text-gray-900">
+                ${participant.player_count || 0}/${participant.max_players || 11}
+            </div>
+            <div class="text-xs text-gray-500">Players</div>
+        </div>
+        ` : ''}
+    `;
+    list.appendChild(item);
+}
+
+function addMessageToChat(message) {
+    const chatMessages = document.getElementById('chat-messages');
+    
+    // Clear placeholder if it exists
+    const placeholder = chatMessages.querySelector('.text-center');
+    if (placeholder) {
+        placeholder.remove();
+    }
+    
+    // Remove "Sending..." indicator if it exists
+    const tempSending = document.getElementById('temp-sending');
+    if (tempSending) {
+        tempSending.remove();
+    }
+    
+    const messageElement = document.createElement('div');
+    messageElement.className = 'mb-2 text-sm text-gray-800';
+    messageElement.innerHTML = `<strong>${message.participant_name}:</strong> ${message.message}`;
+    
+    chatMessages.appendChild(messageElement);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+function showCountdownModal(countdown) {
+    const modal = document.getElementById('countdownModal');
+    modal.classList.remove('hidden');
+    updateCountdown(countdown);
+}
+
+function updateCountdown(countdown) {
+    document.getElementById('countdown-timer').textContent = countdown;
+}
+
+function hideCountdownModal() {
+    const modal = document.getElementById('countdownModal');
+    modal.classList.add('hidden');
+}
+
+function formatTime(timestamp) {
+    return new Date(timestamp).toLocaleTimeString();
+}
+
+function loadChatMessages() {
+    fetch(`/auction/${auctionId}/messages`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.messages && data.messages.length > 0) {
+                const chatMessages = document.getElementById('chat-messages');
+                // Clear placeholder
+                const placeholder = chatMessages.querySelector('.text-center');
+                if (placeholder) {
+                    placeholder.remove();
+                }
+                
+                data.messages.forEach(message => {
+                    addMessageToChat(message);
+                });
+            }
+        })
+        .catch(error => {
+            console.log('No existing messages to load');
+        });
+}
+
+function updateStartButton() {
+    const bidderElements = document.querySelectorAll('[data-role="bidder"]');
+    const bidderCount = bidderElements.length;
+    const startBtn = document.getElementById('start-auction-btn');
+    const bidderCountSpan = document.getElementById('bidder-count');
+    const infoMessage = document.getElementById('auction-info-message');
+    
+    if (bidderCountSpan) {
+        bidderCountSpan.textContent = bidderCount;
+    }
+    
+    if (startBtn) {
+        if (bidderCount >= 2) {
+            startBtn.disabled = false;
+            startBtn.classList.remove('bg-gray-400', 'cursor-not-allowed');
+            startBtn.classList.add('bg-green-600', 'hover:bg-green-700');
+            if (infoMessage) {
+                infoMessage.textContent = `Ready to start! ${bidderCount} bidders have joined.`;
+            }
+        } else {
+            startBtn.disabled = true;
+            startBtn.classList.add('bg-gray-400', 'cursor-not-allowed');
+            startBtn.classList.remove('bg-green-600', 'hover:bg-green-700');
+            if (infoMessage) {
+                infoMessage.textContent = `Waiting for bidders and visitors to join. Need at least 2 bidders to start.`;
+            }
+        }
+    }
+}
+
+// Chat input enter key
+document.getElementById('chat-input').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+        sendMessage();
+    }
+});
+</script>
+{% endblock %}

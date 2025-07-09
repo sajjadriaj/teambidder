@@ -1,0 +1,489 @@
+{% extends "base.html" %}
+
+{% block title %}{{ auction.name }} - Live Auction{% endblock %}
+
+{% block content %}
+<div class="row">
+    <!-- Main Auction Area -->
+    <div class="col-lg-8">
+        <div class="auction-header mb-4">
+            <h2>{{ auction.name }}</h2>
+            <div class="auction-status">
+                <span class="badge bg-{{ 'success' if auction.status == 'active' else 'warning' }}">
+                    {{ auction.status|title }}
+                </span>
+            </div>
+        </div>
+
+        {% if auction.status == 'active' and current_player %}
+        <!-- Current Player -->
+        <div class="card current-player-card mb-4">
+            <div class="card-header">
+                <h4><i class="fas fa-user-circle me-2"></i>Current Player</h4>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="player-info">
+                            <h3>{{ current_player.name }}</h3>
+                            <p class="position">
+                                <span class="badge bg-primary">{{ current_player.position }}</span>
+                            </p>
+                            <div class="rating-display">
+                                <div class="rating-bar">
+                                    <div class="rating-fill" style="width: {{ current_player.rating }}%"></div>
+                                    <span class="rating-text">{{ current_player.rating }}</span>
+                                </div>
+                            </div>
+                            
+                            <!-- Additional player metadata -->
+                            {% if current_player.metadata_dict %}
+                            <div class="player-metadata mt-3">
+                                {% for key, value in current_player.metadata_dict.items() %}
+                                <div class="metadata-item">
+                                    <strong>{{ key|title }}:</strong> {{ value }}
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="bidding-info">
+                            <div class="current-bid">
+                                <h5>Current Bid</h5>
+                                <div class="bid-amount" id="current-bid-amount">
+                                    ${{ current_player.current_bid|int }}
+                                </div>
+                            </div>
+                            <div class="base-price">
+                                <small class="text-muted">
+                                    Base Price: ${{ current_player.starting_bid|int }}
+                                </small>
+                            </div>
+                            
+                            <!-- Bidding Controls -->
+                            {% if participant and participant.role == 'bidder' %}
+                            <div class="mt-6 p-4 bg-white bg-opacity-20 rounded-lg">
+                                <div class="mb-4">
+                                    <div class="flex justify-between items-center mb-2">
+                                        <span class="text-sm font-medium">Your Team</span>
+                                        <span class="text-lg font-bold text-blue-300">
+                                            {{ participant.get_player_count() }}/{{ auction.max_players_per_team }} Players
+                                        </span>
+                                    </div>
+                                    {% if participant.get_player_count() >= auction.max_players_per_team %}
+                                    <div class="bg-red-100 border border-red-400 text-red-700 px-3 py-2 rounded mb-2">
+                                        <i class="fas fa-exclamation-triangle mr-2"></i>
+                                        Team is full! Cannot bid for more players.
+                                    </div>
+                                    {% endif %}
+                                    
+                                    <div class="flex justify-between items-center mb-2">
+                                        <span class="text-sm font-medium">Your Remaining Budget</span>
+                                        <span class="text-lg font-bold text-yellow-300">
+                                            ${{ "{:,}".format(participant.get_remaining_budget()|int) }}
+                                        </span>
+                                    </div>
+                                    <div class="w-full bg-gray-200 rounded-full h-2">
+                                        <div class="bg-yellow-400 h-2 rounded-full" 
+                                             style="width: {{ ((participant.get_remaining_budget() / auction.budget_per_team) * 100)|int }}%"></div>
+                                    </div>
+                                </div>
+                                
+                                <div class="space-y-3">
+                                    <div class="flex space-x-2">
+                                        <input type="number" 
+                                               class="flex-1 px-4 py-2 bg-white bg-opacity-90 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-white text-gray-900" 
+                                               id="bid-amount" 
+                                               min="{{ current_player.current_bid + 1000 }}" 
+                                               step="1000" 
+                                               value="{{ current_player.current_bid + 1000 }}"
+                                               {% if participant.get_player_count() >= auction.max_players_per_team %}disabled{% endif %}>
+                                        <button onclick="placeBid()" 
+                                                class="px-6 py-2 {% if participant.get_player_count() >= auction.max_players_per_team %}bg-gray-400 cursor-not-allowed{% else %}bg-green-600 hover:bg-green-700{% endif %} text-white rounded-lg transition-colors font-semibold"
+                                                {% if participant.get_player_count() >= auction.max_players_per_team %}disabled{% endif %}>
+                                            <i class="fas fa-gavel mr-1"></i>Bid
+                                        </button>
+                                    </div>
+                                    
+                                    <div class="flex space-x-2">
+                                        <button class="flex-1 px-3 py-2 {% if participant.get_player_count() >= auction.max_players_per_team %}bg-gray-400 cursor-not-allowed{% else %}bg-blue-600 hover:bg-blue-700{% endif %} text-white rounded-lg transition-colors text-sm" 
+                                                onclick="quickBid(5000)" {% if participant.get_player_count() >= auction.max_players_per_team %}disabled{% endif %}>+$5K</button>
+                                        <button class="flex-1 px-3 py-2 {% if participant.get_player_count() >= auction.max_players_per_team %}bg-gray-400 cursor-not-allowed{% else %}bg-blue-600 hover:bg-blue-700{% endif %} text-white rounded-lg transition-colors text-sm" 
+                                                onclick="quickBid(10000)" {% if participant.get_player_count() >= auction.max_players_per_team %}disabled{% endif %}>+$10K</button>
+                                        <button class="flex-1 px-3 py-2 {% if participant.get_player_count() >= auction.max_players_per_team %}bg-gray-400 cursor-not-allowed{% else %}bg-blue-600 hover:bg-blue-700{% endif %} text-white rounded-lg transition-colors text-sm" 
+                                                onclick="quickBid(25000)" {% if participant.get_player_count() >= auction.max_players_per_team %}disabled{% endif %}>+$25K</button>
+                                        <button class="flex-1 px-3 py-2 {% if participant.get_player_count() >= auction.max_players_per_team %}bg-gray-400 cursor-not-allowed{% else %}bg-blue-600 hover:bg-blue-700{% endif %} text-white rounded-lg transition-colors text-sm" 
+                                                onclick="quickBid(50000)" {% if participant.get_player_count() >= auction.max_players_per_team %}disabled{% endif %}>+$50K</button>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endif %}
+                            
+                            <!-- Admin Controls -->
+                            {% if participant and participant.role == 'admin' %}
+                            <div class="admin-controls mt-3">
+                                <button class="btn btn-warning" onclick="endPlayerBidding()">
+                                    <i class="fas fa-stop me-1"></i>End Bidding
+                                </button>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Bids -->
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-history me-2"></i>Recent Bids</h5>
+            </div>
+            <div class="card-body">
+                <div class="bids-list" id="bids-list">
+                    <!-- Bids will be loaded here -->
+                </div>
+            </div>
+        </div>
+
+        {% elif auction.status == 'completed' %}
+        <!-- Auction Completed -->
+        <div class="card">
+            <div class="card-header">
+                <h4><i class="fas fa-flag-checkered me-2"></i>Auction Completed</h4>
+            </div>
+            <div class="card-body">
+                <p class="text-center">The auction has ended. View the final results below.</p>
+                <div class="text-center">
+                    <a href="#final-results" class="btn btn-primary">
+                        <i class="fas fa-chart-bar me-2"></i>View Results
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Sidebar -->
+    <div class="col-lg-4">
+        <!-- Participants -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5><i class="fas fa-users me-2"></i>Participants</h5>
+            </div>
+            <div class="card-body">
+                <div class="participants-list" id="participants-list">
+                    {% for participant in participants %}
+                    <div class="participant-item {{ 'active' if participant.is_active }}">
+                        <div class="participant-info">
+                            <strong>{{ participant.name }}</strong>
+                            <span class="badge bg-{{ 'primary' if participant.role == 'bidder' else 'info' }} ms-2">
+                                {{ participant.role|title }}
+                            </span>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Chat -->
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-comments me-2"></i>Live Chat</h5>
+            </div>
+            <div class="card-body">
+                <div class="chat-messages" id="chat-messages">
+                    <!-- Messages will be loaded here -->
+                </div>
+                <div class="chat-input mt-3">
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="chat-input" 
+                               placeholder="Type a message..." maxlength="200">
+                        <button class="btn btn-primary" onclick="sendMessage()">
+                            <i class="fas fa-paper-plane"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Player Sold Modal -->
+<div class="modal fade" id="playerSoldModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Player Sold!</h5>
+            </div>
+            <div class="modal-body text-center">
+                <div class="sold-info" id="sold-info">
+                    <!-- Sold player info will be displayed here -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Continue</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Final Results -->
+{% if auction.status == 'completed' %}
+<div class="mt-5" id="final-results">
+    <h3><i class="fas fa-trophy me-2"></i>Final Results</h3>
+    
+    <!-- Team Formation -->
+    <div class="row">
+        {% set teams = {} %}
+        {% for player in players %}
+            {% if player.sold_to %}
+                {% set team_name = participants|selectattr('id', 'equalto', player.sold_to)|map(attribute='name')|first %}
+                {% if team_name not in teams %}
+                    {% set _ = teams.update({team_name: []}) %}
+                {% endif %}
+                {% set _ = teams[team_name].append(player) %}
+            {% endif %}
+        {% endfor %}
+        
+        {% for team_name, team_players in teams.items() %}
+        <div class="col-md-6 mb-4">
+            <div class="card team-card">
+                <div class="card-header">
+                    <h5>{{ team_name }}</h5>
+                    <div class="flex justify-between items-center">
+                        <span class="bg-green-100 text-green-800 px-2 py-1 rounded text-sm">
+                            ${{ "{:,}".format(team_players|sum(attribute='current_bid')|int) }} Spent
+                        </span>
+                        <span class="bg-blue-100 text-blue-800 px-2 py-1 rounded text-sm">
+                            ${{ "{:,}".format((auction.budget_per_team - team_players|sum(attribute='current_bid'))|int) }} Left
+                        </span>
+                    </div>
+                </div>
+                <div class="card-body">
+                    {% for player in team_players %}
+                    <div class="player-summary">
+                        <div class="player-name">{{ player.name }}</div>
+                        <div class="player-details">
+                            <span class="badge bg-secondary">{{ player.position }}</span>
+                            <span class="text-success">${{ player.current_bid|int }}</span>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Statistics -->
+    <div class="row mt-4">
+        <div class="col-md-3">
+            <div class="stat-card">
+                <div class="stat-icon">
+                    <i class="fas fa-money-bill-wave"></i>
+                </div>
+                <div class="stat-info">
+                    <h4>${{ players|selectattr('sold_to')|sum(attribute='current_bid')|int }}</h4>
+                    <p>Total Spent</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-card">
+                <div class="stat-icon">
+                    <i class="fas fa-user-check"></i>
+                </div>
+                <div class="stat-info">
+                    <h4>{{ players|selectattr('sold_to')|list|length }}</h4>
+                    <p>Players Sold</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-card">
+                <div class="stat-icon">
+                    <i class="fas fa-star"></i>
+                </div>
+                <div class="stat-info">
+                    <h4>${{ players|selectattr('sold_to')|max(attribute='current_bid')|attr('current_bid')|int if players|selectattr('sold_to')|list else 0 }}</h4>
+                    <p>Highest Sale</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-card">
+                <div class="stat-icon">
+                    <i class="fas fa-percentage"></i>
+                </div>
+                <div class="stat-info">
+                    <h4>{{ ((players|selectattr('sold_to')|list|length / players|length) * 100)|int }}%</h4>
+                    <p>Sold Rate</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+let socket = io();
+let auctionId = '{{ auction.id }}';
+let currentPlayerId = '{{ current_player.id if current_player else "" }}';
+
+// Join auction room
+socket.emit('join_auction', {auction_id: auctionId});
+
+// Socket event handlers
+socket.on('new_message', function(data) {
+    addMessageToChat(data.message);
+});
+
+socket.on('bid_placed', function(data) {
+    updateCurrentBid(data.bid, data.player);
+    addBidToList(data.bid);
+});
+
+socket.on('player_bidding_ended', function(data) {
+    if (data.player.sold_to) {
+        showPlayerSoldModal(data.player);
+    }
+    
+    if (data.next_player) {
+        updateCurrentPlayer(data.next_player);
+    } else if (data.auction_ended) {
+        location.reload(); // Reload to show final results
+    }
+});
+
+// Functions
+function placeBid() {
+    const bidAmount = document.getElementById('bid-amount').value;
+    if (!bidAmount || bidAmount <= 0) {
+        alert('Please enter a valid bid amount');
+        return;
+    }
+    
+    socket.emit('place_bid', {
+        auction_id: auctionId,
+        player_id: currentPlayerId,
+        bid_amount: parseFloat(bidAmount)
+    });
+}
+
+function quickBid(amount) {
+    const currentBid = parseInt(document.getElementById('current-bid-amount').textContent.replace('$', '').replace(',', ''));
+    const newBid = currentBid + amount;
+    document.getElementById('bid-amount').value = newBid;
+    placeBid();
+}
+
+function endPlayerBidding() {
+    if (confirm('Are you sure you want to end bidding for this player?')) {
+        socket.emit('end_player_bidding', {
+            auction_id: auctionId,
+            player_id: currentPlayerId
+        });
+    }
+}
+
+function sendMessage() {
+    const input = document.getElementById('chat-input');
+    const message = input.value.trim();
+    
+    if (message) {
+        socket.emit('send_message', {
+            auction_id: auctionId,
+            message: message
+        });
+        input.value = '';
+    }
+}
+
+function addMessageToChat(message) {
+    const chatMessages = document.getElementById('chat-messages');
+    const messageElement = document.createElement('div');
+    messageElement.className = 'chat-message';
+    messageElement.innerHTML = `
+        <div class="message-header">
+            <strong>${message.participant_name}</strong>
+            <small class="text-muted">${formatTime(message.created_at)}</small>
+        </div>
+        <div class="message-content">${message.message}</div>
+    `;
+    chatMessages.appendChild(messageElement);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+function addBidToList(bid) {
+    const bidsList = document.getElementById('bids-list');
+    const bidElement = document.createElement('div');
+    bidElement.className = 'bid-item';
+    bidElement.innerHTML = `
+        <div class="bid-info">
+            <strong>${bid.participant_name}</strong>
+            <span class="bid-amount">$${bid.amount.toLocaleString()}</span>
+            <small class="text-muted">${formatTime(bid.created_at)}</small>
+        </div>
+    `;
+    bidsList.insertBefore(bidElement, bidsList.firstChild);
+}
+
+function updateCurrentBid(bid, player) {
+    document.getElementById('current-bid-amount').textContent = `$${bid.amount.toLocaleString()}`;
+    const bidInput = document.getElementById('bid-amount');
+    if (bidInput) {
+        bidInput.min = bid.amount + 1000;
+        bidInput.value = bid.amount + 1000;
+    }
+    
+    // Update budget display if user is the one who placed the bid
+    const participant = '{{ participant.id if participant else "" }}';
+    if (participant && bid.participant_id === participant) {
+        // This would typically be updated via WebSocket with fresh participant data
+        // For now, we'll reload the page to get updated budget info
+        setTimeout(() => {
+            location.reload();
+        }, 1000);
+    }
+}
+
+function updateCurrentPlayer(player) {
+    currentPlayerId = player.id;
+    // This would typically reload the page or update the current player section
+    location.reload();
+}
+
+function showPlayerSoldModal(player) {
+    const soldInfo = document.getElementById('sold-info');
+    soldInfo.innerHTML = `
+        <h4>${player.name}</h4>
+        <p>Sold for <strong>$${player.current_bid.toLocaleString()}</strong></p>
+        <p class="text-muted">Position: ${player.position}</p>
+    `;
+    
+    const modal = new bootstrap.Modal(document.getElementById('playerSoldModal'));
+    modal.show();
+}
+
+function formatTime(timestamp) {
+    return new Date(timestamp).toLocaleTimeString();
+}
+
+// Chat input enter key
+document.getElementById('chat-input').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+        sendMessage();
+    }
+});
+
+// Error handling
+socket.on('error', function(data) {
+    alert(data.message);
+});
+</script>
+{% endblock %}

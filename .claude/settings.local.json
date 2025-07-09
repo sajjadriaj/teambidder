@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir:*)",
+      "Bash(rm:*)",
+      "Bash(sudo ufw:*)",
+      "Bash(python:*)",
+      "Bash(pip install:*)",
+      "Bash(timeout:*)",
+      "Bash(grep:*)",
+      "Bash(chmod:*)",
+      "Bash(mv:*)",
+      "Bash(git add:*)"
+    ],
+    "deny": []
+  }
+}
