@@ -1,5 +1,8 @@
 # Auction System .gitignore
 
+# Claude Code settings
+.claude/
+
 # Database files
 instance/
 *.db
